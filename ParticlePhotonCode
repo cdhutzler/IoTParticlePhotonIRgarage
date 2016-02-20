@@ -1,0 +1,138 @@
+#define GarageDoorIsOpen 1
+#define GarageDoorIsClosed 0
+
+int LastDoorStatus; //Last status of the door - used to see if the current status of the door has changed
+int DoorStatus; //Door's current status for use with the cloud publishing event
+int OpenClosedThreshold; //IR Proximity sensor threshold by which garage is Open or Closed (above or below)
+
+void setup() 
+    {
+        Particle.variable("DoorStatus", DoorStatus);
+        Particle.function("TellGarage", TellGarage); 
+    
+        pinMode(A0, INPUT);   //Proximity Sensor analog input value (lower voltage = door closed)
+        pinMode(D0, OUTPUT);  //Garage Door output control feeds a 1K resistor and the base of a darlington transistor
+        pinMode(D1, OUTPUT); //beeper
+        digitalWrite (D0,LOW); //Set initial state of the garage door trigger to LOW
+        digitalWrite (D1,LOW); //set beeper low
+        
+        //Determine OpenClosedThreshold value by reading proximity sensor, moving door,
+        //reading sensor again, and finally moving door back to the original position
+        OpenClosedThreshold = ReadIRSensor ();
+        MoveDoor();
+        
+        delay(15000); //Wait for Door to fully change states
+        
+        OpenClosedThreshold = (OpenClosedThreshold + ReadIRSensor())/2;
+        MoveDoor();
+        
+        //Set initial door state so we can find out if it changes in the future
+        LastDoorStatus=DoorState();
+    }
+
+void loop() 
+    {
+        delay(1500); //delay 1.5s to not overwhelm arduino GPIO pins or Cloud API
+        
+        //Find the state of the door and then test to see if it has changed since the last time
+        //If door state has changed, publish the "DoorStatus" particle cloud variable which can be a push notification on the iPhone
+        switch(DoorState())
+            {
+                case GarageDoorIsOpen:
+                {
+                    if (LastDoorStatus!=GarageDoorIsOpen)
+                    {
+                        LastDoorStatus=GarageDoorIsOpen;
+                        Particle.publish("DoorStatus", "Open");
+                    }
+                break;
+                }
+                case GarageDoorIsClosed:
+                {
+                    if (LastDoorStatus!=GarageDoorIsClosed)
+                    {
+                        LastDoorStatus=GarageDoorIsClosed;
+                        Particle.publish("DoorStatus", "Closed");
+                    }
+                break;
+                }
+            }
+    }
+
+
+//****************Subroutines*****************
+
+//Return the door's state (Open or Closed) by simply comparing the current value or the proximity sensor to the threshold value
+int DoorState()
+    {
+    if (ReadIRSensor()>OpenClosedThreshold)
+        return GarageDoorIsOpen;
+    else
+        return GarageDoorIsClosed;
+    }
+
+//Routine to read the IR door sensor X times and average the result
+int ReadIRSensor ()
+    {
+        int AverageRead = 0;
+        for (int i=1; i <= 5; i++)
+        {
+            AverageRead = (AverageRead+analogRead(A0));
+            delay(100);
+        }
+        AverageRead = AverageRead/5;    
+        return AverageRead;
+    }
+
+//Pull a Darlington Transistor (or relay) HIGH +5V to trigger garage door contacts to close/short (button press)
+//After 0.5s delay, go back low to finish simulation of a button press
+void MoveDoor()
+    {
+        for (int i=1; i <= 3; i++) //sound the beeper
+            {
+                digitalWrite (D1,HIGH);
+                delay(500);
+                digitalWrite (D1,LOW);
+                delay(500);
+            }
+        digitalWrite (D0,HIGH);
+        delay(500);
+        digitalWrite (D0,LOW);
+    }
+
+// Define Cloud API Function commands - Toggle, Open, Close or Check
+//Toggle moves door to opposite position, Open is open, Close is close, and Check returns the door's state (open or closed)
+int TellGarage (String command)
+    {
+        
+        if (command=="Toggle")
+        {
+            MoveDoor();
+            return 1;    
+        }
+        else if (command=="Open")
+        {
+            if (LastDoorStatus==GarageDoorIsClosed)
+                MoveDoor();
+            return 1;    
+        }
+        else if (command=="Close")
+        {
+            if (LastDoorStatus==GarageDoorIsOpen)
+                MoveDoor();
+            return 1;    
+        }
+        else if (command=="Check")
+        {
+            if (LastDoorStatus==GarageDoorIsOpen)
+                Particle.publish("DoorStatus", "Open"); 
+            else
+                Particle.publish("DoorStatus", "Closed"); 
+            return 1;    
+        }
+        else
+        {
+        return -1;
+        }
+    
+    }
