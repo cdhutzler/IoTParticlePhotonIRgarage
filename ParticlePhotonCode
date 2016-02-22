@@ -43,7 +43,7 @@ void loop()
                     if (LastDoorStatus!=GarageDoorIsOpen)
                     {
                         LastDoorStatus=GarageDoorIsOpen;
-                        Particle.publish("DoorStatus", "Open");
+                        Particle.publish("DoorStatus", "Open", PRIVATE);
                     }
                 break;
                 }
@@ -52,7 +52,7 @@ void loop()
                     if (LastDoorStatus!=GarageDoorIsClosed)
                     {
                         LastDoorStatus=GarageDoorIsClosed;
-                        Particle.publish("DoorStatus", "Closed");
+                        Particle.publish("DoorStatus", "Closed", PRIVATE);
                     }
                 break;
                 }
@@ -88,7 +88,7 @@ int ReadIRSensor ()
 //After 0.5s delay, go back low to finish simulation of a button press
 void MoveDoor()
     {
-        for (int i=1; i <= 3; i++) //sound the beeper
+        for (int i=1; i <= 3; i++) //sound the beeper before we move the door
             {
                 digitalWrite (D1,HIGH);
                 delay(500);
@@ -125,9 +125,9 @@ int TellGarage (String command)
         else if (command=="Check")
         {
             if (LastDoorStatus==GarageDoorIsOpen)
-                Particle.publish("DoorStatus", "Open"); 
+                Particle.publish("DoorStatus", "Open", PRIVATE); 
             else
-                Particle.publish("DoorStatus", "Closed"); 
+                Particle.publish("DoorStatus", "Closed", PRIVATE); 
             return 1;    
         }
         else
